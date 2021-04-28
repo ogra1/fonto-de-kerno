@@ -1,0 +1,94 @@
+name: fonto-de-kerno
+base: core20
+version: '0.1'
+summary: Overview of sources of base snaps (core, core18, core20)
+description: |
+  This snap runs a little webserver on port 8088 that serves a list of link
+  pages to the respective sources one of the Ubuntu Core base snaps was
+  built from. The list gets automatically updated once a new base snap
+  shows up in the stable channel.
+
+  Fonto de kerno is esperanto for 'Source of Core'
+
+grade: stable
+confinement: strict
+
+apps:
+  updater:
+    command: usr/bin/update-wrapper
+    environment:
+      PYTHONPATH: "$PYTHONPATH:$SNAP/usr/lib/python3/dist-packages"
+    daemon: simple
+    install-mode: disable
+    timer: 00:00-24:00/24 # run every hour
+    plugs:
+      - network
+      - network-bind
+  init:
+    command: usr/bin/init
+    environment:
+      PYTHONPATH: "$PYTHONPATH:$SNAP/usr/lib/python3/dist-packages"
+    daemon: simple
+    plugs:
+      - network
+      - network-bind
+  lighttpd:
+    command: usr/sbin/lighttpd -D -m $SNAP/usr/lib/ -f $SNAP_DATA/lighttpd.conf
+    daemon: simple
+    plugs:
+      - network
+      - network-bind
+
+layout:
+  /etc/ca-certificates.conf:
+    bind-file: $SNAP/etc/ca-certificates.conf
+  /etc/ca-certificates/update.d:
+    bind: $SNAP/etc/ca-certificates/update.d
+  /etc/ssl/certs:
+    bind: $SNAP_DATA/certs
+  /usr/share/ca-certificates:
+    bind: $SNAP/usr/share/ca-certificates
+
+parts:
+  pysquashfsimage:
+    source: .
+    source-type: local
+    plugin: python
+    python-packages:
+      - PySquashfsImage
+  updater:
+    source: .
+    plugin: dump
+    organize:
+      scripts/updater.py: usr/bin/updater
+      scripts/update-wrapper.sh: usr/bin/update-wrapper
+      scripts/init.sh: usr/bin/init
+    build-packages:
+      - ca-certificates
+    override-build: |
+      snapcraftctl build
+      mkdir -p $SNAPCRAFT_PART_INSTALL/etc/
+      cp /etc/ca-certificates.conf $SNAPCRAFT_PART_INSTALL/etc/
+    stage-packages:
+      - ca-certificates
+      - python3-certifi
+      - python3-chardet
+      - python3-idna
+      - python3-launchpadlib
+      - python3-oauthlib
+      - python3-requests
+      - python3-six
+      - python3-urllib3
+  lighttpd:
+    source: https://github.com/lighttpd/lighttpd1.4.git
+    source-tag: lighttpd-1.4.59
+    plugin: autotools
+    autotools-configure-parameters:
+      - --prefix=/usr
+    override-build: |
+      sed -i 's/I will not set /I have been patched to allow setting /;/I have been patched/{n;s/.*//}' src/server.c
+      snapcraftctl build
+    build-packages:
+      - libbz2-dev
+      - libpcre++-dev
+      - zlib1g-dev

@@ -1,0 +1,10 @@
+#! /bin/sh
+
+for base in core core18 core20; do
+  mkdir -p $SNAP_COMMON/out/$base
+done
+
+cp $SNAP/templates/index.html-init $SNAP_COMMON/out/index.html
+cp $SNAP/config/lighttpd.conf $SNAP_DATA/
+
+$SNAP/usr/sbin/update-ca-certificates
