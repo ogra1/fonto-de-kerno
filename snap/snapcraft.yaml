@@ -91,4 +91,5 @@ parts:
     build-packages:
       - libbz2-dev
       - libpcre++-dev
+      - pkg-config
       - zlib1g-dev
