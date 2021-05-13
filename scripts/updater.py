@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import atexit
 import fileinput
 import os
 import requests
@@ -18,6 +19,14 @@ cachedir = snapdata+"/.launchpadlib/cache/"
 launchpad = Launchpad.login_anonymously('just testing', 'production', cachedir, version='devel')
 tmpdir = tempfile.mkdtemp()
 outdir = snapcommon+"/out"
+
+print("created "+tmpdir)
+
+def cleanup(tmpdir):
+    print("removing "+tmpdir)
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+atexit.register(cleanup, tmpdir)
 
 def get_download_url(core, arch):
     apiurl = "https://api.snapcraft.io/v2/snaps/info/"
@@ -77,7 +86,7 @@ def get_src_for_deb(distro, arch, bin_deb, bin_ver):
     srcdata = url+" "+mysrc.source_package_name+" "+mysrc.source_package_version
     return srcdata
 
-def parse_dpkg_list(dpkg_list):
+def parse_dpkg_list(dpkg_list, arch):
     with open(dpkg_list) as f:
         lines = [line.rstrip() for line in f]
 
@@ -85,8 +94,6 @@ def parse_dpkg_list(dpkg_list):
     corever = basename.split('-')[0]
     dists = {"core": "xenial", "core18": "bionic", "core20": "focal"}
     distro = dists[corever]
-
-    arch = dpkg_list.split('-')[1]
 
     tabledata = []
 
@@ -125,7 +132,7 @@ def gen_html_page(coretype, arch, rev, dpkg_list):
 
     gen_html_head(coretype, arch, rev, outfile)
 
-    content = parse_dpkg_list(dpkg_list)
+    content = parse_dpkg_list(dpkg_list, arch)
 
     with open(outfile, "a") as file_object:
         for line in content:
@@ -158,7 +165,7 @@ def gen_index(outdir, coretype):
     fin.close()
     fout.close()
 
-cores = ['core18', 'core20', 'core']
+cores = ['core18', 'core20']
 arches = ['amd64', 'arm64', 'armhf']
 
 for coretype in cores:
