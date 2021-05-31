@@ -102,6 +102,10 @@ def parse_dpkg_list(dpkg_list, arch):
             parsedline = line.split()
             package = parsedline[1].split(':')[0]
             version = parsedline[2]
+            # ignore special cased fake packages (core20 seeds a fake avahi-daemon)
+            # https://github.com/snapcore/core20/commit/d2163f62de8ffc9664a07b008107055a8cd35d06
+            if distro == "focal" and package == "avahi-daemon":
+                continue
             link, src_name, src_version = get_src_for_deb(distro, arch, package, version).split()
             tabledata.append(gen_table_row(package, version, link, src_name, src_version))
     return tabledata
