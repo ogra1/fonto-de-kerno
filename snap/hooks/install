@@ -1,6 +1,6 @@
 #! /bin/sh
 
-for base in core core18 core20; do
+for base in core18 core20; do
   mkdir -p $SNAP_COMMON/out/$base
 done
 
