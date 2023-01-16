@@ -65,8 +65,18 @@ def extract_dpkg_list(core, arch, rev, squashfs):
 def get_src_for_deb(distro, arch, bin_deb, bin_ver):
     ubuntu = launchpad.distributions["ubuntu"]
     archive = ubuntu.main_archive
-    series = "https://api.launchpad.net/1.0/ubuntu/"+distro+"/"+arch
     url = ""
+
+    # We are still using console-conf and subiquitycore from focal in the jammy.
+    if (bin_deb == "console-conf" or bin_deb == "subiquitycore") and distro == "jammy":
+        distro = "focal"
+
+    # for some reason, the dpkg file in the latest core22 snap shows 0.0.20 although 
+    # launchpad has 0.0.20build5 
+    if (bin_deb == "probert-common" or bin_deb == "probert-network") and distro == "jammy":
+        bin_ver="0.0.20build5"
+
+    series = "https://api.launchpad.net/1.0/ubuntu/"+distro+"/"+arch
 
     try:
       mysrc=archive.getPublishedBinaries(exact_match=True, binary_name=bin_deb, version=bin_ver, distro_arch_series=series)[0]
@@ -92,7 +102,7 @@ def parse_dpkg_list(dpkg_list, arch):
 
     basename = os.path.basename(dpkg_list)
     corever = basename.split('-')[0]
-    dists = {"core": "xenial", "core18": "bionic", "core20": "focal"}
+    dists = {"core": "xenial", "core18": "bionic", "core20": "focal", "core22": "jammy"}
     distro = dists[corever]
 
     tabledata = []
@@ -169,7 +179,7 @@ def gen_index(outdir, coretype):
     fin.close()
     fout.close()
 
-cores = ['core18', 'core20']
+cores = ['core18', 'core20', 'core22']
 arches = ['amd64', 'arm64', 'armhf']
 
 for coretype in cores:
