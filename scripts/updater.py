@@ -49,15 +49,16 @@ def download_snap(core, rev, url):
     return outfile
 
 def extract_dpkg_list(core, arch, rev, squashfs):
-    image = SquashFsImage(squashfs)
+    image = SquashFsImage.from_file(squashfs)
     outfile = tmpdir+'/'+core+'-'+arch+'-'+rev+'-dpkg.list'
 
-    for i in image.root.findAll():
-        if i.getName() == b'dpkg.list':
-            with open(outfile,'wb') as f:
-                f.write(i.getContent())
-                print(outfile+' saved')
-                return outfile
+    
+    dpkgFile = image.find("dpkg.list")
+    if dpkgFile is not None:
+         with open(outfile,'wb') as f:
+            f.write(dpkgFile.read_bytes())
+            print(outfile+' saved')
+            return outfile
     image.close()
     if os.path.isfile(squashfs):
         os.remove(squashfs)
@@ -75,6 +76,13 @@ def get_src_for_deb(distro, arch, bin_deb, bin_ver):
     # launchpad has 0.0.20build5 
     if (bin_deb == "probert-common" or bin_deb == "probert-network") and distro == "jammy":
         bin_ver="0.0.20build5"
+    
+    if (bin_deb == "cryptsetup" or bin_deb == "cryptsetup-bin" or bin_deb == "libcryptsetup12" ) and distro == "jammy":
+        bin_ver = bin_ver.split('+')[0]
+
+    if (bin_deb == "libplymouth5" or bin_deb == "plymouth" or bin_deb == "plymouth-label-ft" ) and distro == "jammy":
+        bin_deb = "plymouth"
+        bin_ver = bin_ver.rsplit("~", 1)[0].rsplit(".", 1)[0]
 
     series = "https://api.launchpad.net/1.0/ubuntu/"+distro+"/"+arch
 
