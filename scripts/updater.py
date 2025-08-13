@@ -68,40 +68,53 @@ def get_src_for_deb(distro, arch, bin_deb, bin_ver):
     archive = ubuntu.main_archive
     url = ""
 
-    # We are still using console-conf and subiquitycore from focal in the jammy.
+    if "esm" in bin_ver:
+        return "not publicly available " + bin_deb + " " + bin_ver
+
+    # Adjustments for specific cases
     if (bin_deb == "console-conf" or bin_deb == "subiquitycore") and distro == "jammy":
         distro = "focal"
 
-    # for some reason, the dpkg file in the latest core22 snap shows 0.0.20 although 
-    # launchpad has 0.0.20build5 
     if (bin_deb == "probert-common" or bin_deb == "probert-network") and distro == "jammy":
-        bin_ver="0.0.20build5"
-    
-    if (bin_deb == "cryptsetup" or bin_deb == "cryptsetup-bin" or bin_deb == "libcryptsetup12" ) and distro == "jammy":
+        bin_ver = "0.0.20build5"
+
+    if (bin_deb == "cryptsetup" or bin_deb == "cryptsetup-bin" or bin_deb == "libcryptsetup12") and distro == "jammy":
         bin_ver = bin_ver.split('+')[0]
 
-    if (bin_deb == "libplymouth5" or bin_deb == "plymouth" or bin_deb == "plymouth-label-ft" ) and distro == "jammy":
+    if (bin_deb == "libplymouth5" or bin_deb == "plymouth" or bin_deb == "plymouth-label-ft") and distro == "jammy":
         bin_deb = "plymouth"
         bin_ver = bin_ver.rsplit("~", 1)[0].rsplit(".", 1)[0]
 
-    series = "https://api.launchpad.net/1.0/ubuntu/"+distro+"/"+arch
+    series = f"https://api.launchpad.net/1.0/ubuntu/{distro}/{arch}"
 
     try:
-      mysrc=archive.getPublishedBinaries(exact_match=True, binary_name=bin_deb, version=bin_ver, distro_arch_series=series)[0]
-      url = "https://launchpad.net/ubuntu/+source/"+mysrc.source_package_name+"/"+mysrc.source_package_version
-    except:
-      try:
-        owner = launchpad.people["snappy-dev"]
-        archive = owner.getPPAByName(name="image")
-        mysrc = archive.getPublishedBinaries(exact_match=True, binary_name=bin_deb, version=bin_ver, distro_arch_series=series)[0]
-        url = "https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+packages?field.name_filter="+mysrc.source_package_name+"&field.status_filter=published&field.series_filter="+distro
-      except:
-        owner = launchpad.people["canonical-foundations"]
-        archive = owner.getPPAByName(name="ubuntu-image")
-        mysrc = archive.getPublishedBinaries(exact_match=True, binary_name=bin_deb, version=bin_ver, distro_arch_series=series)[0]
-        url = "https://launchpad.net/~canonical-foundations/+archive/ubuntu/ubuntu-image/+packages?field.name_filter="+mysrc.source_package_name+"&field.status_filter=published&field.series_filter="+distro
+        mysrc = archive.getPublishedBinaries(
+            exact_match=True, binary_name=bin_deb, version=bin_ver, distro_arch_series=series
+        )[0]
+        url = f"https://launchpad.net/ubuntu/+source/{mysrc.source_package_name}/{mysrc.source_package_version}"
+    except Exception as e:
+        print(f"Error fetching source from main archive: {e}")
+        try:
+            owner = launchpad.people["snappy-dev"]
+            archive = owner.getPPAByName(name="image")
+            mysrc = archive.getPublishedBinaries(
+                exact_match=True, binary_name=bin_deb, version=bin_ver, distro_arch_series=series
+            )[0]
+            url = f"https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+packages?field.name_filter={mysrc.source_package_name}&field.status_filter=published&field.series_filter={distro}"
+        except Exception as e:
+            print(f"Error fetching source from snappy-dev PPA: {e}")
+            try:
+                owner = launchpad.people["canonical-foundations"]
+                archive = owner.getPPAByName(name="ubuntu-image")
+                mysrc = archive.getPublishedBinaries(
+                    exact_match=True, binary_name=bin_deb, version=bin_ver, distro_arch_series=series
+                )[0]
+                url = f"https://launchpad.net/~canonical-foundations/+archive/ubuntu/ubuntu-image/+packages?field.name_filter={mysrc.source_package_name}&field.status_filter=published&field.series_filter={distro}"
+            except Exception as e:
+                print(f"Error fetching source from canonical-foundations PPA: {e}")
+                return ""
 
-    srcdata = url+" "+mysrc.source_package_name+" "+mysrc.source_package_version
+    srcdata = f"{url} {mysrc.source_package_name} {mysrc.source_package_version}"
     return srcdata
 
 def parse_dpkg_list(dpkg_list, arch):
@@ -110,7 +123,7 @@ def parse_dpkg_list(dpkg_list, arch):
 
     basename = os.path.basename(dpkg_list)
     corever = basename.split('-')[0]
-    dists = {"core": "xenial", "core18": "bionic", "core20": "focal", "core22": "jammy"}
+    dists = {"core": "xenial", "core18": "bionic", "core20": "focal", "core22": "jammy", "core24": "noble"}
     distro = dists[corever]
 
     tabledata = []
@@ -120,12 +133,22 @@ def parse_dpkg_list(dpkg_list, arch):
             parsedline = line.split()
             package = parsedline[1].split(':')[0]
             version = parsedline[2]
-            # ignore special cased fake packages (core20 seeds a fake avahi-daemon)
-            # https://github.com/snapcore/core20/commit/d2163f62de8ffc9664a07b008107055a8cd35d06
+
+            # Ignore special cases
             if distro == "focal" and package == "avahi-daemon":
                 continue
-            link, src_name, src_version = get_src_for_deb(distro, arch, package, version).split()
-            tabledata.append(gen_table_row(package, version, link, src_name, src_version))
+
+            src_data = get_src_for_deb(distro, arch, package, version)
+            if not src_data:
+                continue
+
+            try:
+                link, src_name, src_version = src_data.split()
+                tabledata.append(gen_table_row(package, version, link, src_name, src_version))
+            except ValueError as e:
+                print(f"Error unpacking source data for package: {package}, version: {version}, data: {src_data}")
+                continue
+
     return tabledata
 
 def gen_table_row(binary, binary_version, link, src_name, src_version):
@@ -187,7 +210,7 @@ def gen_index(outdir, coretype):
     fin.close()
     fout.close()
 
-cores = ['core18', 'core20', 'core22']
+cores = ['core18', 'core20', 'core22', 'core24']
 arches = ['amd64', 'arm64', 'armhf']
 
 for coretype in cores:
